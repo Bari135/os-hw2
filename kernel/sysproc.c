@@ -89,3 +89,40 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_peterson_create(void)
+{
+  return peterson_create_impl();
+}
+
+uint64
+sys_peterson_acquire(void)
+{
+  int lock_id;
+  int role;
+
+  argint(0, &lock_id);
+  argint(1, &role);
+  return peterson_acquire_impl(lock_id, role);
+}
+
+uint64
+sys_peterson_release(void)
+{
+  int lock_id;
+  int role;
+
+  argint(0, &lock_id);
+  argint(1, &role);
+  return peterson_release_impl(lock_id, role);
+}
+
+uint64
+sys_peterson_destroy(void)
+{
+  int lock_id;
+
+  argint(0, &lock_id);
+  return peterson_destroy_impl(lock_id);
+}
