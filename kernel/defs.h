@@ -9,6 +9,15 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+
+// peterson.c
+void            petersoninit(void);
+int             peterson_create_impl(void);
+int             peterson_acquire_impl(int, int);
+int             peterson_release_impl(int, int);
+int             peterson_destroy_impl(int);
+
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
