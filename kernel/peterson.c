@@ -1,29 +1,28 @@
 #include "types.h"
-#include "param.h"
+#include "param.h"   
 #include "memlayout.h"
-#include "riscv.h"
+#include "riscv.h" 
 #include "spinlock.h"
-#include "proc.h"
 #include "defs.h"
 #include "peterson.h"
+#include "proc.h"
 
-struct {
-  struct spinlock lock;                // Protects access to the locks array
-  struct petersonlock locks[NPETERSON]; // Array of Peterson locks
-} ptable;
+struct petlock peterson_locks[NPETLOCK];
+
+static inline int
+valid_role(int r){ return r == ROLE0 || r == ROLE1; }
+
+static inline int
+valid_lockid(int id){ return id >= 0 && id < NPETLOCK; }
 
 void
 petersoninit(void)
 {
-  initlock(&ptable.lock, "petersonlocks");
-  
-  // Initialize all Peterson locks
-  for(int i = 0; i < NPETERSON; i++) {
-    ptable.locks[i].active = 0;
-    ptable.locks[i].want[0] = 0;
-    ptable.locks[i].want[1] = 0;
-    ptable.locks[i].turn = 0;
-    ptable.locks[i].name = "petersonlock";
+  for(int i = 0; i < NPETLOCK; i++){
+    peterson_locks[i].active   = 0;
+    peterson_locks[i].flag[0]  = 0;
+    peterson_locks[i].flag[1]  = 0;
+    peterson_locks[i].turn     = 0;
   }
 }
 
@@ -31,89 +30,54 @@ petersoninit(void)
 int
 peterson_create_impl(void)
 {
-  int i;
-  
-  acquire(&ptable.lock);
-  
-  // Find an inactive lock
-  for(i = 0; i < NPETERSON; i++) {
-    if(ptable.locks[i].active == 0) {
-      ptable.locks[i].active = 1;
-      ptable.locks[i].want[0] = 0;
-      ptable.locks[i].want[1] = 0;
-      ptable.locks[i].turn = 0;
-      release(&ptable.lock);
-      return i;  // Return lock ID
+  for(int i = 0; i < NPETLOCK; i++){
+    // Atomically claim a free slot
+    if(__sync_lock_test_and_set(&peterson_locks[i].active, 1) == 0){
+      __sync_synchronize();          // Make sure rest of struct is visible
+      return i;
     }
   }
-  
-  release(&ptable.lock);
-  return -1;  // No free locks
+  return -1;
 }
 
 // Acquire the Peterson lock
 int
 peterson_acquire_impl(int lock_id, int role)
 {
-  // Validate lock_id and role
-  if(lock_id < 0 || lock_id >= NPETERSON || (role != 0 && role != 1))
+  if(!valid_lockid(lock_id) || !valid_role(role) || !peterson_locks[lock_id].active)
     return -1;
-  
-  acquire(&ptable.lock);
-  if(ptable.locks[lock_id].active == 0) {
-    release(&ptable.lock);
-    return -1;  // Lock not active
-  }
-  release(&ptable.lock);
-  
-  // Set want flag for this process
-  __sync_synchronize();  // Memory barrier before accessing shared state
-  ptable.locks[lock_id].want[role] = 1;
-  
-  // Set turn to other process
-  ptable.locks[lock_id].turn = 1 - role;
-  __sync_synchronize();  // Memory barrier after updating shared state
-  
-  // While the other process wants the lock and it's the other process's turn
-  while(ptable.locks[lock_id].want[1 - role] && 
-        ptable.locks[lock_id].turn == (1 - role)) {
-    // Instead of busy-waiting, yield the CPU
-    yield();
+
+  struct petlock *l = &peterson_locks[lock_id];
+  int other = role ^ 1;
+
+  // Peterson protocol with yield
+  __sync_lock_test_and_set(&l->flag[role], 1);
+  __sync_lock_release(&l->turn);          // Reset turn
+  l->turn = other;                        // Set turn to other process
+  __sync_synchronize();
+
+  while(l->flag[other] && l->turn == other){
+    yield();                              // Give CPU up instead of busy wait
     
-    // After returning from yield, we need to recheck if the lock is still active
-    acquire(&ptable.lock);
-    if(ptable.locks[lock_id].active == 0) {
-      release(&ptable.lock);
-      return -1;  // Lock was destroyed while waiting
-    }
-    release(&ptable.lock);
+    // Check if lock was destroyed while waiting
+    if(!peterson_locks[lock_id].active)
+      return -1;
     
-    __sync_synchronize();  // Memory barrier before checking shared state again
+    __sync_synchronize();                 // Reload shared fields
   }
-  
-  return 0;  // Lock acquired
+  return 0;
 }
 
 // Release the Peterson lock
 int
 peterson_release_impl(int lock_id, int role)
 {
-  // Validate lock_id and role
-  if(lock_id < 0 || lock_id >= NPETERSON || (role != 0 && role != 1))
+  if(!valid_lockid(lock_id) || !valid_role(role) || !peterson_locks[lock_id].active)
     return -1;
-  
-  acquire(&ptable.lock);
-  if(ptable.locks[lock_id].active == 0) {
-    release(&ptable.lock);
-    return -1;  // Lock not active
-  }
-  release(&ptable.lock);
-  
-  // Reset want flag for this process
-  __sync_synchronize();  // Memory barrier before modifying shared state
-  ptable.locks[lock_id].want[role] = 0;
-  __sync_synchronize();  // Memory barrier after updating shared state
-  
+
+  struct petlock *l = &peterson_locks[lock_id];
+  __sync_lock_release(&l->flag[role]);    // flag[role] = 0 (atomic)
+  __sync_synchronize();
   return 0;
 }
 
@@ -121,19 +85,13 @@ peterson_release_impl(int lock_id, int role)
 int
 peterson_destroy_impl(int lock_id)
 {
-  // Validate lock_id
-  if(lock_id < 0 || lock_id >= NPETERSON)
-    return -1;
-  
-  acquire(&ptable.lock);
-  if(ptable.locks[lock_id].active == 0) {
-    release(&ptable.lock);
-    return -1;  // Lock not active
-  }
-  
-  // Mark lock as inactive
-  ptable.locks[lock_id].active = 0;
-  release(&ptable.lock);
-  
+  if(!valid_lockid(lock_id) || !peterson_locks[lock_id].active) return -1;
+
+  struct petlock *l = &peterson_locks[lock_id];
+  // Clean up both flags before marking inactive
+  __sync_lock_release(&l->flag[0]);
+  __sync_lock_release(&l->flag[1]);
+  __sync_synchronize();
+  l->active = 0;
   return 0;
 }

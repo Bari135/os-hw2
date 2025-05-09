@@ -1,15 +1,18 @@
 #include "types.h"
 
-struct petersonlock {
-  uint active;          // Is the lock active/created?
-  uint want[2];         // Want flags (1 means the process wants to enter critical section)
-  uint turn;            // Whose turn is it to wait (0 or 1)
-  // Debug info
-  char *name;           // Name of the lock
+// Define roles
+#define ROLE0    0
+#define ROLE1    1
+#define NPETLOCK 15   // Number of Peterson locks
+
+// Renamed struct and fields
+struct petlock {
+  int active;        // Is the lock active/created?
+  int flag[2];       // Flag fields (renamed from want)
+  int turn;          // Whose turn is it to wait (0 or 1)
 };
 
-#define NPETERSON 16    // Number of Peterson locks in the system
-
+// Keep same function prototypes
 void            petersoninit(void);
 int             peterson_create_impl(void);
 int             peterson_acquire_impl(int lock_id, int role);
