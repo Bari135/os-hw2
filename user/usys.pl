@@ -36,6 +36,8 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+
+# Added for Task 1 - Peterson Lock System Call Stubs
 entry("peterson_create");
 entry("peterson_acquire");
 entry("peterson_release");

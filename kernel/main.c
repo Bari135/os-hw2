@@ -27,7 +27,7 @@ main()
     binit();         // buffer cache
     iinit();         // inode table
     fileinit();      // file table
-    petersoninit();  // initialize Peterson locks
+    petersoninit();  // Added for Task 1 - initialize Peterson locks
     virtio_disk_init(); // emulated hard disk
     userinit();      // first user process
     __sync_synchronize();

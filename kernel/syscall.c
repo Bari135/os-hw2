@@ -101,6 +101,8 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+
+/* Added for Task 1 - Peterson Lock System Call Prototypes */
 extern uint64 sys_peterson_create(void);
 extern uint64 sys_peterson_acquire(void);
 extern uint64 sys_peterson_release(void);
@@ -130,6 +132,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+
+/* Added for Task 1 - Peterson Lock System Call Handlers */
 [SYS_peterson_create] sys_peterson_create,
 [SYS_peterson_acquire] sys_peterson_acquire,
 [SYS_peterson_release] sys_peterson_release,

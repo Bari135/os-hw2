@@ -9,7 +9,7 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
-
+/* Added for Task 1 - Peterson Lock Function Declarations */
 // peterson.c
 void            petersoninit(void);
 int             peterson_create_impl(void);

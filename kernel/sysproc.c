@@ -90,6 +90,8 @@ sys_uptime(void)
   return xticks;
 }
 
+/* Added for Task 1 - Peterson Lock System Call Implementations */
+
 uint64
 sys_peterson_create(void)
 {

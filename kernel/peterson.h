@@ -1,3 +1,4 @@
+/* Added for Task 1 - Peterson Lock Implementation */
 #include "types.h"
 
 // Define roles

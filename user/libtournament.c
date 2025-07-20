@@ -1,3 +1,4 @@
+/* Added for Task 2 - Tournament Lock Implementation */
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
@@ -11,12 +12,22 @@ static int *acquired_locks = 0;    // Track locks this process has acquired
 static int *acquired_roles = 0;    // Track roles used for acquired locks
 static int num_acquired = 0;       // Number of locks currently acquired
 
-// Check if a number is a power of 2
+/**
+ * @brief Checks if a number is a power of 2
+ * 
+ * @param n Number to check
+ * @return int 1 if n is a power of 2, 0 otherwise
+ */
 static int is_power_of_two(int n) {
     return (n > 0) && ((n & (n - 1)) == 0);
 }
 
-// Calculate log base 2 of n (assuming n is a power of 2)
+/**
+ * @brief Calculates log base 2 of a power of 2 number
+ * 
+ * @param n Input number (must be a power of 2)
+ * @return int Log base 2 of n
+ */
 static int log2_pow2(int n) {
     int result = 0;
     while (n > 1) {
@@ -26,6 +37,24 @@ static int log2_pow2(int n) {
     return result;
 }
 
+/**
+ * @brief Creates a new tournament tree with the specified number of processes
+ * 
+ * This function implements the tournament tree creation by:
+ * 1. Validating input parameters
+ * 2. Calculating tree dimensions
+ * 3. Allocating and initializing Peterson locks
+ * 4. Forking child processes
+ * 5. Setting up process-specific data structures
+ * 
+ * The tournament tree is organized in a binary tree structure where:
+ * - Each internal node is a Peterson lock
+ * - Leaf nodes are the participating processes
+ * - Processes compete in pairs up the tree
+ * 
+ * @param processes Number of processes (must be power of 2, max 16)
+ * @return int Process index (0 to processes-1) or -1 on error
+ */
 int tournament_create(int processes) {
     // Validation: processes must be a power of 2 and <= 16
     if (!is_power_of_two(processes) || processes > 16) {
@@ -80,6 +109,20 @@ int tournament_create(int processes) {
     return process_index;
 }
 
+/**
+ * @brief Attempts to acquire the tournament lock for the calling process
+ * 
+ * This function implements the tournament lock acquisition by:
+ * 1. Validating the process state
+ * 2. Traversing the tree bottom-up
+ * 3. At each level:
+ *    - Calculating the appropriate role based on process index
+ *    - Computing the lock index for the current level
+ *    - Acquiring the Peterson lock
+ *    - Tracking acquired locks and roles
+ * 
+ * @return int 0 on success, -1 on error
+ */
 int tournament_acquire(void) {
     if (process_index < 0 || lock_ids == 0 || acquired_locks == 0 || acquired_roles == 0) {
         return -1;  // Tournament not created or invalid state
@@ -116,6 +159,17 @@ int tournament_acquire(void) {
     return 0;  // Successfully acquired all locks
 }
 
+/**
+ * @brief Releases all locks held by the calling process
+ * 
+ * This function implements the tournament lock release by:
+ * 1. Validating the process state
+ * 2. Traversing the acquired locks top-down
+ * 3. Releasing each Peterson lock in reverse order
+ * 4. Resetting the acquisition state
+ * 
+ * @return int 0 on success, -1 on error
+ */
 int tournament_release(void) {
     if (process_index < 0 || lock_ids == 0 || acquired_locks == 0 || acquired_roles == 0) {
         return -1;  // Tournament not created or invalid state
